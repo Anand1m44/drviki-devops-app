@@ -1,0 +1,36 @@
+name: CI → Build & Smoke Test
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch support)
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: docker build -t drviki-app:ci-${{ github.run_id }} .
+
+      - name: Run container in background
+        run: |
+          docker run -d --name drviki-ci -p 8080:8080 drviki-app:ci-${{ github.run_id }}
+
+      - name: Wait for app
+        run: sleep 5
+
+      - name: Smoke test: expect greeting text
+        run: |
+          curl -fsS http://localhost:8080/ | grep "Hello from Dr. ViKi" || (docker logs drviki-ci && exit 1)
+
+      - name: Cleanup
+        run: docker rm -f drviki-ci || true
